@@ -1,7 +1,12 @@
-import type { ChildProcess } from 'child_process';
+import { spawn, type ChildProcess } from 'child_process';
+import { v4 as uuidv4 } from 'uuid';
 
 export class PredictedProcess {
   private _childProcess: ChildProcess | null = null;
+  private _signalToProcessMap = new Map<
+    AbortSignal | string,
+    { isResolved: boolean }
+  >();
 
   public constructor(
     public readonly id: number,
@@ -18,7 +23,33 @@ export class PredictedProcess {
    *
    */
   public async run(signal?: AbortSignal): Promise<void> {
-    // TODO: Implement this.
+    const cachedResult = signal && this._signalToProcessMap.get(signal);
+    if (cachedResult?.isResolved) {
+      return;
+    }
+    if (signal && signal.aborted) throw new EvalError('Signal already aborted');
+    const childProcess = await spawn(this.command, { signal });
+    this._signalToProcessMap.set(signal || uuidv4(), { isResolved: false });
+    signal?.addEventListener(
+      'abort',
+      () => {
+        childProcess.kill();
+      },
+      { once: true },
+    );
+    childProcess.on('close', () => {
+      childProcess.removeAllListeners();
+      if (childProcess.killed) throw new EvalError('Process killed');
+      const cachedResult = signal && this._signalToProcessMap.get(signal);
+      if (cachedResult) {
+        cachedResult.isResolved = true;
+      }
+      childProcess.kill();
+    });
+    childProcess.on('error', (err) => {
+      childProcess.removeAllListeners();
+      throw err;
+    });
   }
 
   /**
