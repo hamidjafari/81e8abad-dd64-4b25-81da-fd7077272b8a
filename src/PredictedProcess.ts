@@ -19,7 +19,9 @@ export class PredictedProcess {
    * WRITE UP:
    * (Please provide a detailed explanation of your approach, specifically the reasoning behind your design decisions. This can be done _after_ the 1h30m time limit.)
    *
-   * ...
+   * this function spawn the process
+   * uuid is an example of a way that we could differentiate between processes if we want to address them in the future
+   * this function save the result in a Map to check if the same signal has been passed to the `run` method
    *
    */
   public async run(signal?: AbortSignal): Promise<void> {
@@ -28,7 +30,8 @@ export class PredictedProcess {
       return;
     }
     if (signal && signal.aborted) throw new EvalError('Signal already aborted');
-    const childProcess = await spawn(this.command, { signal });
+    const childProcess =
+      this._childProcess || (await spawn(this.command, { signal }));
     this._signalToProcessMap.set(signal || uuidv4(), { isResolved: false });
     signal?.addEventListener(
       'abort',
